@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"crypto/subtle"
 	"flag"
 	"fmt"
@@ -21,6 +22,7 @@ type options struct {
 	authCreds              string
 	quitAfterFirstDownload bool
 	rewriteBaseDir         string
+	bufioSize              int
 	excludeExt             stringArray
 }
 
@@ -59,7 +61,7 @@ func handlerFactory(baseDir string, opt *options) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		fmt.Printf("Serving request for %s", r.RemoteAddr)
+		fmt.Printf("Serving request for %s\n", r.RemoteAddr)
 
 		if opt.authCreds != "" {
 			if !authHandle(w, r, opt) {
@@ -71,7 +73,8 @@ func handlerFactory(baseDir string, opt *options) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/x-tar")
 		w.WriteHeader(http.StatusOK)
 
-		tw := tar.NewWriter(w)
+		bw := bufio.NewWriterSize(w, opt.bufioSize)
+		tw := tar.NewWriter(bw)
 		err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -129,6 +132,10 @@ func handlerFactory(baseDir string, opt *options) http.HandlerFunc {
 			log.Fatal(err)
 		}
 
+		if err := bw.Flush(); err != nil {
+			log.Fatal(err)
+		}
+
 		if opt.quitAfterFirstDownload {
 			os.Exit(0)
 		}
@@ -157,6 +164,7 @@ func main() {
 	flag.StringVar(&opt.authCreds, "basic-auth", "", "basic auth credentials in format `user:password`")
 	flag.StringVar(&opt.rewriteBaseDir, "rewrite-base-dir", "", "rewrite base dir to something else. Do not expose local filepath.")
 	flag.BoolVar(&opt.quitAfterFirstDownload, "quit-after", false, "quit after first download")
+	flag.IntVar(&opt.bufioSize, "bufio-size", 1024, "Buffered I/O size")
 	flag.Var(&opt.excludeExt, "exclude-extension", "Extension to exclude from archive")
 	flag.Parse()
 
