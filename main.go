@@ -65,7 +65,6 @@ func handlerFactory(baseDir string, opt *options) http.HandlerFunc {
 			if !authHandle(w, r, opt) {
 				return
 			}
-
 		}
 
 		w.Header().Set("Content-Disposition", "attachment; filename=archive.tar")
